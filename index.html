@@ -1,0 +1,166 @@
+<html>
+
+</html>
+
+<head>
+    <title>A Frame </title>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+</head>
+
+<body>
+    <script type="text/javascript">
+        AFRAME.registerComponent('motion-control-component', {
+            schema: {
+                rotationSpeed: { default: 2.5 },
+                zoomSpeed: { default: .005 },
+            },
+            init: function () {
+                this.ifMouseDown = false;
+                this.x_cord = 0;
+                this.y_cord = 0;
+                this.scale = 1;
+                this.el.object3D.position.set(0, 1.7, -2);
+                document.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                document.addEventListener('wheel', this.handleMouseWheel.bind(this));
+
+                document.addEventListener('touchstart', this.handleTouchStart.bind(this));
+                document.addEventListener('touchmove', this.handleTouchMove.bind(this));
+                document.addEventListener('touchend', this.handleTouchEnd.bind(this));
+
+                //animation
+                this.isPaused = false;
+                document.getElementById('toggle-animation').addEventListener('click', this.toggleAnimation.bind(this));
+
+                this.el.addEventListener('model-loaded', this.handleModelLoaded.bind(this));
+            },
+            handleMouseDown: function (event) {
+                this.ifMouseDown = true;
+                this.x_cord = event.clientX;
+                this.y_cord = event.clientY;
+            },
+            handleMouseUp: function () {
+                this.ifMouseDown = false;
+            },
+            handleMouseMove: function (event) {
+                if (this.ifMouseDown) {
+                    let deltaX = event.clientX - this.x_cord;
+                    let deltaY = event.clientY - this.y_cord;
+
+                    let rotationX = new THREE.Quaternion();
+                    let rotationY = new THREE.Quaternion();
+
+                    rotationY.setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaX * this.data.rotationSpeed / 300);
+                    rotationX.setFromAxisAngle(new THREE.Vector3(1, 0, 0), deltaY * this.data.rotationSpeed / 300);
+
+                    this.el.object3D.quaternion.multiplyQuaternions(rotationY, this.el.object3D.quaternion);
+                    this.el.object3D.quaternion.multiplyQuaternions(rotationX, this.el.object3D.quaternion);
+
+                    this.x_cord = event.clientX;
+                    this.y_cord = event.clientY;
+                }
+            },
+            handleMouseWheel: function (event) {
+                this.scale += event.deltaY * -this.data.zoomSpeed;
+                this.scale = Math.min(Math.max(.01, this.scale));
+                this.el.object3D.scale.set(this.scale, this.scale, this.scale);
+            },
+            handleTouchStart: function (event) {
+                if (event.touches.length === 1) {
+                    this.ifMouseDown = true;
+                    this.x_cord = event.touches[0].clientX;
+                    this.y_cord = event.touches[0].clientY;
+                } else if (event.touches.length === 2) {
+                    this.initialDistance = this.getDistance(event.touches[0], event.touches[1]);
+                }
+            },
+            handleTouchMove: function (event) {
+                if (this.ifMouseDown && event.touches.length === 1) {
+                    let deltaX = event.touches[0].clientX - this.x_cord;
+                    let deltaY = event.touches[0].clientY - this.y_cord;
+
+                    let rotationX = new THREE.Quaternion();
+                    let rotationY = new THREE.Quaternion();
+
+                    rotationY.setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaX * this.data.rotationSpeed / 300);
+                    rotationX.setFromAxisAngle(new THREE.Vector3(1, 0, 0), deltaY * this.data.rotationSpeed / 300);
+
+                    this.el.object3D.quaternion.multiplyQuaternions(rotationY, this.el.object3D.quaternion);
+                    this.el.object3D.quaternion.multiplyQuaternions(rotationX, this.el.object3D.quaternion);
+
+                    this.x_cord = event.touches[0].clientX;
+                    this.y_cord = event.touches[0].clientY;
+                } else if (event.touches.length === 2) {
+                    let currentDistance = this.getDistance(event.touches[0], event.touches[1]);
+                    if (this.initialDistance) {
+                        let scaleChange = currentDistance / this.initialDistance;
+                        this.scale *= scaleChange;
+                        this.scale = Math.min(Math.max(.1, this.scale));
+                        this.el.object3D.scale.set(this.scale, this.scale, this.scale);
+                        this.initialDistance = currentDistance;
+                    }
+                }
+            },
+            handleTouchEnd: function () {
+                this.ifMouseDown = false;
+                this.initialDistance = null;
+            },
+            getDistance: function (touch1, touch2) {
+                let dx = touch1.clientX - touch2.clientX;
+                let dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            },
+            //animation
+            toggleAnimation: function () {
+                const animationMixer = this.el.components['animation-mixer'];
+                if (animationMixer) {
+                    this.isPaused = !this.isPaused;
+                    animationMixer.mixer.timeScale = this.isPaused ? 0 : 1;
+                    document.getElementById('toggle-animation').textContent = this.isPaused ? 'Play Animation' : 'Pause Animation';
+                }
+            },
+            handleModelLoaded: function (event) {
+                const model = event.detail.model;
+                const animations = model.animations;
+                if (animations && animations.length > 0) {
+                    console.log('Animations found in the model:');
+                    animations.forEach((animation, index) => {
+                        console.log(`Animation ${index + 1}:`, animation);
+                    });
+                    const animationMixer = this.el.components['animation-mixer'];
+                    if (animationMixer) {
+                        animationMixer.data.clip = animations[0].name;
+                        // animationMixer.stopAllAction();
+                        animationMixer.playAction(animationMixer.data.clip);
+                    }
+                } else {
+                    console.log('No animations found in the model.');
+                }
+            },
+        });
+    </script>
+    <a-scene background="color: #ededed">
+        <a-assets>
+            <a-asset-item id="element" src="/bullet_physics_animation_9_reconstruction/scene.gltf"></a-asset-item>
+            <!-- <a-asset-item id="element" src="/gun-bot_with_walk_and_idle_animation/scene.gltf"></a-asset-item> -->
+            <!-- <a-asset-item id="element" src="/fbx/heartglass.fbx"></a-asset-item> -->
+        </a-assets>
+        <a-entity gltf-model="#element" position="0 0 -2" scale=".15 .15 .15" motion-control-component
+            animation-mixer></a-entity>
+        <!-- <a-entity fbx-model="#element" crossorigin="anonymous" motion-control-component></a-entity> -->
+        <!-- animation-mixer="clip:Default Take"></a-entity> -->
+        <!-- <a-entity obj-model="obj: #element;" position="0 0 -2" scale=".6 .6 .6" motion-control-component></a-entity> -->
+        <!-- <a-obj-model src="#element" position="0 0 -2" scale=".6 .6 .6" motion-control-component></a-obj-model> -->
+        <!-- <a-entity gltf-model="#element" position="0 0 -2" scale=".6 .6 .6" motion-control-component></a-entity> -->
+        <!-- <a-entity fbx-model="#element" position="0 0 -2" scale=".6 .6 .6" motion-control-component></a-entity> -->
+        <a-camera look-controls="enabled: false" wasd-controls=" enabled: false">
+        </a-camera>
+    </a-scene>
+    <button id="toggle-animation"
+        style="position: absolute; bottom: 10px; left: 10px;background-color: gray;color: white;border-radius: 10px;padding: 10px;">Pause
+        Animation</button>
+</body>
+
+</html>
